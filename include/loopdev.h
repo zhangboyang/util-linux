@@ -42,6 +42,7 @@ enum {
 	LO_FLAGS_AUTOCLEAR  = 4,	/* kernel >= 2.6.25 */
 	LO_FLAGS_PARTSCAN   = 8,	/* kernel >= 3.2 */
 	LO_FLAGS_DIRECT_IO  = 16,	/* kernel >= 4.2 */
+	LO_FLAGS_NODEALLOC  = 32,	/* kernel >= 5.20 */
 };
 
 #define LO_NAME_SIZE	64
@@ -203,6 +204,7 @@ extern const char *loopcxt_get_crypt_name(struct loopdev_cxt *lc);
 extern int loopcxt_is_autoclear(struct loopdev_cxt *lc);
 extern int loopcxt_is_readonly(struct loopdev_cxt *lc);
 extern int loopcxt_is_dio(struct loopdev_cxt *lc);
+extern int loopcxt_is_nodealloc(struct loopdev_cxt *lc);
 extern int loopcxt_is_partscan(struct loopdev_cxt *lc);
 extern int loopcxt_find_by_backing_file(struct loopdev_cxt *lc,
 				const char *filename,

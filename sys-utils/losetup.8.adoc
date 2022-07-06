@@ -92,6 +92,9 @@ Set up a read-only loop device.
 *--direct-io*[**=on**|*off*]::
 Enable or disable direct I/O for the backing file. The optional argument can be either *on* or *off*. If the optional argument is omitted, it defaults to *on*.
 
+*--nodealloc*[**=on**|*off*]::
+Set the no-deallocate flag of the loop device. If this flag is *on*, disk space of discarded blocks will not be deallocated. The optional argument can be either *on* or *off*. If the optional argument is omitted, it defaults to *on*.
+
 *-v*, *--verbose*::
 Verbose mode.
 

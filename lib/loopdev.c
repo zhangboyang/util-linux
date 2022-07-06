@@ -1050,6 +1050,29 @@ int loopcxt_is_dio(struct loopdev_cxt *lc)
 
 /*
  * @lc: context
+ *
+ * Returns: 1 if the nodealloc flags is set.
+ */
+int loopcxt_is_nodealloc(struct loopdev_cxt *lc)
+{
+	struct path_cxt *sysfs = loopcxt_get_sysfs(lc);
+
+	if (sysfs) {
+		int fl;
+		if (ul_path_read_s32(sysfs, &fl, "loop/nodealloc") == 0)
+			return fl;
+	}
+
+	if (loopcxt_ioctl_enabled(lc)) {
+		struct loop_info64 *lo = loopcxt_get_info(lc);
+		if (lo)
+			return lo->lo_flags & LO_FLAGS_NODEALLOC;
+	}
+	return 0;
+}
+
+/*
+ * @lc: context
  * @st: backing file stat or NULL
  * @backing_file: filename
  * @offset: offset (use LOOPDEV_FL_OFFSET if specified)
@@ -1164,7 +1187,7 @@ int loopcxt_set_blocksize(struct loopdev_cxt *lc, uint64_t blocksize)
 
 /*
  * @lc: context
- * @flags: kernel LO_FLAGS_{READ_ONLY,USE_AOPS,AUTOCLEAR} flags
+ * @flags: kernel LO_FLAGS_{READ_ONLY,USE_AOPS,AUTOCLEAR,NODEALLOC} flags
  *
  * The setting is removed by loopcxt_set_device() loopcxt_next()!
  *
@@ -1456,7 +1479,7 @@ err:
  * Update status of the current device (see loopcxt_{set,get}_device()).
  *
  * Note that once initialized, kernel accepts only selected changes:
- * LO_FLAGS_AUTOCLEAR and LO_FLAGS_PARTSCAN
+ * LO_FLAGS_AUTOCLEAR, LO_FLAGS_PARTSCAN and LO_FLAGS_NODEALLOC
  * For more see linux/drivers/block/loop.c:loop_set_status()
  *
  * Returns: <0 on error, 0 on success.

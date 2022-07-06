@@ -36,6 +36,7 @@ enum {
 	A_FIND_FREE,		/* find first unused */
 	A_SET_CAPACITY,		/* set device capacity */
 	A_SET_DIRECT_IO,	/* set accessing backing file by direct io */
+	A_SET_NODEALLOC,	/* set accessing backing file by nodealloc */
 	A_SET_BLOCKSIZE,	/* set logical block size of the loop device */
 };
 
@@ -51,6 +52,7 @@ enum {
 	COL_RO,
 	COL_SIZELIMIT,
 	COL_DIO,
+	COL_NODEALLOC,
 	COL_LOGSEC,
 };
 
@@ -80,6 +82,7 @@ static struct colinfo infos[] = {
 	[COL_SIZELIMIT]   = { "SIZELIMIT",    5, SCOLS_FL_RIGHT, N_("size limit of the file in bytes"), SCOLS_JSON_NUMBER},
 	[COL_MAJMIN]      = { "MAJ:MIN",      3, 0, N_("loop device major:minor number")},
 	[COL_DIO]         = { "DIO",          1, SCOLS_FL_RIGHT, N_("access backing file with direct-io"), SCOLS_JSON_BOOLEAN},
+	[COL_NODEALLOC]   = { "NODEALLOC",    1, SCOLS_FL_RIGHT, N_("nodealloc flag set"), SCOLS_JSON_BOOLEAN},
 	[COL_LOGSEC]      = { "LOG-SEC",      4, SCOLS_FL_RIGHT, N_("logical sector size in bytes"), SCOLS_JSON_NUMBER},
 };
 
@@ -284,6 +287,9 @@ static int set_scols_data(struct loopdev_cxt *lc, struct libscols_line *ln)
 		case COL_DIO:
 			p = loopcxt_is_dio(lc) ? "1" : "0";
 			break;
+		case COL_NODEALLOC:
+			p = loopcxt_is_nodealloc(lc) ? "1" : "0";
+			break;
 		case COL_PARTSCAN:
 			p = loopcxt_is_partscan(lc) ? "1" : "0";
 			break;
@@ -423,6 +429,7 @@ static void __attribute__((__noreturn__)) usage(void)
 	fputs(_(" -P, --partscan                create a partitioned loop device\n"), out);
 	fputs(_(" -r, --read-only               set up a read-only loop device\n"), out);
 	fputs(_("     --direct-io[=<on|off>]    open backing file with O_DIRECT\n"), out);
+	fputs(_("     --nodealloc[=<on|off>]    don't deallocate disk space of discarded blocks\n"), out);
 	fputs(_("     --show                    print device name after setup (with -f)\n"), out);
 	fputs(_(" -v, --verbose                 verbose mode\n"), out);
 
@@ -599,12 +606,14 @@ int main(int argc, char **argv)
 	char *outarg = NULL;
 	int list = 0;
 	unsigned long use_dio = 0, set_dio = 0, set_blocksize = 0;
+	unsigned long use_nodealloc = 0, set_nodealloc = 0;
 
 	enum {
 		OPT_SIZELIMIT = CHAR_MAX + 1,
 		OPT_SHOW,
 		OPT_RAW,
 		OPT_DIO,
+		OPT_NODEALLOC,
 		OPT_OUTPUT_ALL
 	};
 	static const struct option longopts[] = {
@@ -627,6 +636,7 @@ int main(int argc, char **argv)
 		{ "partscan",     no_argument,       NULL, 'P'           },
 		{ "read-only",    no_argument,       NULL, 'r'           },
 		{ "direct-io",    optional_argument, NULL, OPT_DIO       },
+		{ "nodealloc",    optional_argument, NULL, OPT_NODEALLOC },
 		{ "raw",          no_argument,       NULL, OPT_RAW       },
 		{ "show",         no_argument,       NULL, OPT_SHOW      },
 		{ "verbose",      no_argument,       NULL, 'v'           },
@@ -731,6 +741,13 @@ int main(int argc, char **argv)
 			if (use_dio)
 				lo_flags |= LO_FLAGS_DIRECT_IO;
 			break;
+		case OPT_NODEALLOC:
+			use_nodealloc = set_nodealloc = 1;
+			if (optarg)
+				use_nodealloc = parse_switch(optarg, _("argument error"), "on", "off", NULL);
+			if (use_nodealloc)
+				lo_flags |= LO_FLAGS_NODEALLOC;
+			break;
 		case 'v':
 			break;
 		case OPT_SIZELIMIT:			/* --sizelimit */
@@ -770,6 +787,7 @@ int main(int argc, char **argv)
 		columns[ncolumns++] = COL_RO;
 		columns[ncolumns++] = COL_BACK_FILE;
 		columns[ncolumns++] = COL_DIO;
+		columns[ncolumns++] = COL_NODEALLOC;
 		columns[ncolumns++] = COL_LOGSEC;
 	}
 
@@ -794,11 +812,14 @@ int main(int argc, char **argv)
 		/*
 		 * losetup [--list] <device>
 		 * OR
-		 * losetup {--direct-io[=off]|--logical-blocksize=size}... <device>
+		 * losetup {--direct-io[=off]|--nodealloc[=off]|--logical-blocksize=size}... <device>
 		 */
 		if (set_dio) {
 			act = A_SET_DIRECT_IO;
 			lo_flags &= ~LO_FLAGS_DIRECT_IO;
+		} else if (set_nodealloc) {
+			act = A_SET_NODEALLOC;
+			lo_flags &= ~LO_FLAGS_NODEALLOC;
 		} else if (set_blocksize)
 			act = A_SET_BLOCKSIZE;
 		else
@@ -906,6 +927,19 @@ int main(int argc, char **argv)
 		res = loopcxt_ioctl_dio(&lc, use_dio);
 		if (res)
 			warn(_("%s: set direct io failed"),
+			        loopcxt_get_device(&lc));
+		break;
+	case A_SET_NODEALLOC:
+		res = loopcxt_get_info(&lc) ? 0 : -EINVAL;
+		if (res == 0) {
+			if (use_nodealloc)
+				lc.config.info.lo_flags |= LO_FLAGS_NODEALLOC;
+			else
+				lc.config.info.lo_flags &= ~LO_FLAGS_NODEALLOC;
+			res = loopcxt_ioctl_status(&lc);
+		}
+		if (res)
+			warn(_("%s: set nodealloc failed"),
 			        loopcxt_get_device(&lc));
 		break;
 	case A_SET_BLOCKSIZE:
